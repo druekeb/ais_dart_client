@@ -1,0 +1,354 @@
+library leaflet_maps;
+
+import "dart:html" as html;
+import 'package:js/js.dart' as js;
+import 'aisDart.dart' as caller;
+
+abstract class LeafletMap {
+  String _elementid;
+  String _width;
+  String _height;
+  js.Proxy _map;
+  js.Proxy _featureLayerGroup;
+  js.Proxy _popup;
+  var  _zoom;
+  
+  LeafletMap(String elementid, {String width, String height}) {
+    _elementid = elementid;
+    if(width != null) {
+      _width = width;
+    }
+    if(height != null) {
+      _height = height;
+    } else {
+      _height = "300px";
+    }
+  }
+
+  void setView(num latitude, num longitude, int zoom);
+  
+  int getZoom();
+  
+  List getBounds();
+
+  void loadMap();
+  
+  void openPopup(js.Proxy popup);
+  
+  void closePopup();
+}
+
+class OpenStreetMap extends LeafletMap {
+  int initialZoom;
+  num initialLat;
+  num initialLon;
+  
+  OpenStreetMap(String elementid, List mapOptions, {String width, String height}) : super(elementid, width: width, height: height){ //critical to call super constructor  
+    initialZoom = mapOptions[1];
+    initialLat = mapOptions[0].latitude;
+    initialLon = mapOptions[0].longitude;
+  }
+  void loadMap() {
+    var tileURL = 'http://{s}.tiles.vesseltracker.com/vesseltracker/{z}/{x}/{y}.png';
+    var osmAttrib = 'Map-Data <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-By-SA</a> by <a href="http://openstreetmap.org/">OpenStreetMap</a> contributors target="_blank">MapQuest</a>, <a href="http://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> and contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/" target="_blank">CC-BY-SA</a>';
+    var subDomains = ['otile1','otile2','otile3','otile4'];
+    js.scoped(() {
+        var mapOptions = js.map({'maxZoom': 18, 'attribution': osmAttrib, 'subdomains': subDomains});
+        _map = new js.Proxy(js.context.L.Map, _elementid);
+        _featureLayerGroup = new js.Proxy(js.context.L.LayerGroup);
+        _map.addLayer(_featureLayerGroup);
+        js.retain(_featureLayerGroup);
+        var osm = new js.Proxy(js.context.L.TileLayer,tileURL, mapOptions);
+        _map.addLayer(osm);
+        var mouseOptions = js.map({'numDigits': 5  });
+        var mousePosition = new js.Proxy(js.context.L.MousePosition, mouseOptions);
+        mousePosition.addTo(_map);
+        _map.setView(new js.Proxy(js.context.L.LatLng, initialLat, initialLon),initialZoom);
+        js.retain(_map);
+        js.context.moveendHandler = new js.Callback.many(moveendEvent);
+        _map.on('moveend', js.context.moveendHandler);
+      }); 
+  }
+ 
+  moveendEvent(e){
+    caller.changeRegistration();
+  }
+  
+  List getBounds(){
+    var south, west, north, east;
+      js.scoped((){
+        south= _map.getBounds().getSouthWest().lat;
+        west = _map.getBounds().getSouthWest().lng;
+        north = _map.getBounds().getNorthEast().lat;
+        east = _map.getBounds().getNorthEast().lng;
+      });
+    return [south, west, north, east];
+  }   
+  
+  int  getZoom() {
+    js.scoped((){
+      _zoom = _map.getZoom();
+    });
+    return _zoom;
+  }
+  
+  void setView(num latitude, num longitude, int zoom) {
+    var _pos;
+    js.scoped(() {
+      _pos = new js.Proxy(js.context.L.LatLng, latitude, longitude);
+      _map.setView(_pos,12);
+    });
+  }
+  
+  clearFeatureLayer()
+  {
+    js.scoped((){
+      _featureLayerGroup.clearLayers();
+    });
+  }
+  
+  closePopup(){
+    js.scoped((){
+    _map.closePopup();
+    });
+  }
+  
+  openPopup(js.Proxy popup){
+    js.scoped((){
+    _map.openPopup(popup);
+    _popup = popup;
+    });
+  }
+}
+
+class Popup{
+  js.Proxy _popup;
+  
+  Popup(Coord popupOrigin, String content, Map options) {
+    js.scoped(() {
+      var popupOptions = options;
+      var offsetPoint = new js.Proxy(js.context.L.Point, popupOptions['offset'][0],options['offset'][1]);
+      var latlng = js.context.L.LatLng;
+      var origin = new js.Proxy(latlng, popupOrigin.latitude, popupOrigin.longitude );
+      popupOptions['offset'] = offsetPoint;
+      popupOptions = js.map(popupOptions);
+      _popup= new js.Proxy(js.context.L.Popup, popupOptions);
+      _popup.setLatLng(origin);
+      _popup.setContent(content);
+      js.retain(_popup);
+    });
+  }
+  
+  void addTo(LeafletMap map) {
+    map.closePopup();
+    map.openPopup(_popup);
+  }  
+}
+
+abstract class MapFeature{
+  
+  js.Proxy _mapFeature;
+  
+  
+  void addListeners(mmsi)
+  {
+    onClickHandler(e)=> caller.onClickHandler(e, mmsi);
+    onMouseoutHandler(e)=>caller.onMouseoutHandler(e);
+    onMouseoverHandler(e) =>caller.onMouseoverHandler(e, mmsi);
+
+    js.context.clickHandler = new js.Callback.many(onClickHandler);
+    js.context.mouseoverHandler = new js.Callback.many(onMouseoverHandler);
+    js.context.mouseoutHandler = new js.Callback.many(onMouseoutHandler);
+    _mapFeature.on('click', js.context.clickHandler);
+    _mapFeature.on('mouseover', js.context.mouseoverHandler);
+    _mapFeature.on('mouseout', js.context.mouseoutHandler);
+  }
+  
+  void addTo(LeafletMap map, bool featureLayer) {
+    js.scoped(() {
+      if(featureLayer)
+      {
+        map._featureLayerGroup.addLayer(_mapFeature);
+      }
+      else
+      {
+        _mapFeature.addTo(map._map);
+      }
+    });
+  }
+  
+  void remove(LeafletMap map, bool featureLayer) {
+    js.scoped(() {
+      if(featureLayer)
+      {
+        map._featureLayerGroup.removeLayer(_mapFeature);
+      }
+      else
+      {
+        map._map.remove(_mapFeature);
+      }
+    });
+  }
+}
+
+class Polyline extends MapFeature{
+   
+  Polyline(List<Coord> vectorPoints, Map options) {
+    js.scoped(() {
+      var latlng = js.context.L.LatLng;
+      var points =js.array([]);
+      for(var x = 0;x < vectorPoints.length; x++)
+      {
+        var lat =  vectorPoints[x].latitude;
+        var lng = vectorPoints[x].longitude;
+        points.push(new js.Proxy(latlng,lat,lng ));
+      }
+      var lineOptions = js.map(options);
+      _mapFeature= new js.Proxy(js.context.L.Polyline, points, lineOptions);
+      js.retain(_mapFeature);
+    });
+  }
+}
+
+class AnimatedPolygon extends MapFeature{
+  
+  AnimatedPolygon(List<Coord> vectorPoints, Map options, int vmmsi) {
+    js.scoped(() {
+      var latlng = js.context.L.LatLng;
+      var points =js.array([]);
+      for(var x = 0;x < vectorPoints.length; x++)
+      {
+        var lat =  vectorPoints[x].latitude;
+        var lng = vectorPoints[x].longitude;
+        points.push(new js.Proxy(latlng,lat,lng ));
+      }
+      var triangleOptions = js.map(options);
+      _mapFeature= new js.Proxy(js.context.L.animatedPolygon, points, triangleOptions);
+      addListeners(vmmsi);
+      js.retain(_mapFeature);
+    });
+  }
+   
+  startAnimation(){
+    js.scoped(() {
+      _mapFeature.start();
+    });
+  }
+  
+  stopAnimation(){
+    js.scoped(() {
+      _mapFeature.stop();
+    });
+  }
+}
+
+class CircleMarker extends MapFeature{
+  CircleMarker(Coord vectorPoint, Map options, int vMmsi) {
+    js.scoped(() {
+      var latlng = js.context.L.LatLng;
+      var point = new js.Proxy(latlng,vectorPoint.latitude,vectorPoint.longitude );
+      var circleOptions = js.map(options);
+      _mapFeature= new js.Proxy(js.context.L.CircleMarker, point, circleOptions);
+      addListeners(vMmsi);
+      js.retain(_mapFeature);
+    });
+  }
+  clearLayers(){
+    js.scoped((){
+     // _animatedPolygon.clearLayers(); 
+    });
+  }
+}
+class Marker extends MapFeature{
+
+  Marker(num latitude, num longitude, [String tooltip, bool draggable]) {
+
+    js.scoped(() {
+      var pos = new js.Proxy(js.context.L.LatLng, latitude, longitude);
+      Map options = new Map();
+      if(tooltip != null) {
+        options['title'] = tooltip;
+      }
+      if(draggable != null) {
+        options['draggable'] = draggable;
+      }
+      _mapFeature = new js.Proxy (js.context.L.Marker, pos, js.map(options));
+      js.retain(_mapFeature);
+    });
+  }
+
+  void addTo(LeafletMap map, bool featureLayer) {
+    js.scoped(() {
+      if(featureLayer )
+      {
+        map._featureLayerGroup.addLayer(_mapFeature);
+      }
+      else
+      {
+        _mapFeature.addTo(map);
+      }
+    });
+  }
+
+  Coord getCoord() {
+    js.scoped(() {
+      var latlng = _mapFeature.getLatLng();
+
+      return new Coord(latlng.latitude, latlng.longitude);
+    });
+  }
+
+  void setCoord(Coord coord) {
+    js.scoped(() {
+      var latlng = new js.Proxy(js.context.L.LatLng, coord.latitude, coord.longitude);
+
+      _mapFeature.setLatLng(latlng);
+      _mapFeature.update();
+    });
+  }
+
+  void setIcon(Icon icon) {
+    js.scoped(() {
+      var size = new js.Proxy(js.context.L.Point, icon.dimension.width, icon.dimension.height);
+      var js_icon = new js.Proxy(js.context.L.Icon, js.map({'iconUrl':icon.imageURL, 'iconSize': size}));
+
+      _mapFeature.setIcon(js_icon);
+    });
+  }
+
+  void setZIndexOffset(num offset) {
+    js.scoped(() {
+      _mapFeature.setZIndexOffset(offset);
+    });
+  }
+
+  void setOpacity(num opacity) {
+    js.scoped(() {
+      _mapFeature.setOpacity(opacity);
+    });
+  }
+
+  void bindPopup(Popup popup) {
+  }
+}
+
+class Coord {
+  final num latitude;
+  final num longitude;
+
+  const Coord(this.latitude, this.longitude);
+}
+
+class Icon {
+  final String imageURL;
+  final Dimension dimension;
+
+  const Icon(this.imageURL, this.dimension);
+}
+
+class Dimension {
+  final num width;
+  final num height;
+
+  const Dimension(this.width, this.height);
+}
