@@ -1,7 +1,6 @@
-name:  aisDart
-description:  A sample application
-
+name: aisDart
+description: A sample application
 dependencies:
+  unittest: any
   js: any
-#  unittest: any
   browser: any

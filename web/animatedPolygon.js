@@ -109,7 +109,7 @@ L.AnimatedPolygon = L.Polygon.extend({
       if (self._i === len) {
         self.options.onEnd.apply(self, Array.prototype.slice.call(arguments));
        	self.stop();
-       	console.debug("animation stopped: "+self._i);
+       //	console.debug("animation stopped: "+self._i);
       } else {
         self.animate();
       }
@@ -128,7 +128,7 @@ L.AnimatedPolygon = L.Polygon.extend({
   stop: function() {
     if (this._tid) {
       clearTimeout(this._tid);
-      console.debug("animation timeout cleared");
+      //console.debug("animation timeout cleared");
     }
   }
 });

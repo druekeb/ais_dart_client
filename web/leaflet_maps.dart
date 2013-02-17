@@ -3,6 +3,7 @@ library leaflet_maps;
 import "dart:html" as html;
 import 'package:js/js.dart' as js;
 import 'aisDart.dart' as caller;
+import 'dart:json';
 
 abstract class LeafletMap {
   String _elementid;
@@ -12,7 +13,7 @@ abstract class LeafletMap {
   js.Proxy _featureLayerGroup;
   js.Proxy _popup;
   var  _zoom;
-  
+
   LeafletMap(String elementid, {String width, String height}) {
     _elementid = elementid;
     if(width != null) {
@@ -26,15 +27,15 @@ abstract class LeafletMap {
   }
 
   void setView(num latitude, num longitude, int zoom);
-  
+
   int getZoom();
-  
+
   List getBounds();
 
   void loadMap();
-  
+
   void openPopup(js.Proxy popup);
-  
+
   void closePopup();
 }
 
@@ -42,8 +43,8 @@ class OpenStreetMap extends LeafletMap {
   int initialZoom;
   num initialLat;
   num initialLon;
-  
-  OpenStreetMap(String elementid, List mapOptions, {String width, String height}) : super(elementid, width: width, height: height){ //critical to call super constructor  
+
+  OpenStreetMap(String elementid, List mapOptions, {String width, String height}) : super(elementid, width: width, height: height){ //critical to call super constructor
     initialZoom = mapOptions[1];
     initialLat = mapOptions[0].latitude;
     initialLon = mapOptions[0].longitude;
@@ -61,17 +62,39 @@ class OpenStreetMap extends LeafletMap {
         var osm = new js.Proxy(js.context.L.TileLayer,tileURL, mapOptions);
         _map.addLayer(osm);
         var mouseOptions = js.map({'numDigits': 5  });
-        var mousePosition = new js.Proxy(js.context.L.MousePosition, mouseOptions);
+        var mousePosition = new js.Proxy(js.context.L.Control.MousePosition, mouseOptions);
         mousePosition.addTo(_map);
         _map.setView(new js.Proxy(js.context.L.LatLng, initialLat, initialLon),initialZoom);
         js.retain(_map);
-        js.context.moveendHandler = new js.Callback.many(moveendEvent);
-        _map.on('moveend', js.context.moveendHandler);
-      }); 
+        _map.on('moveend', new js.Callback.many(moveendHandler));
+      });
+    changeRegistration();
   }
- 
-  moveendEvent(e){
-    caller.changeRegistration();
+  
+  moveendHandler(e)
+  {
+    changeRegistration();
+  }
+  
+  changeRegistration()
+  {
+    var zoom = getZoom();
+    if(zoom < 3)
+    {
+      zoomTo(3);
+      return;
+    }
+    var boundsArray = getBounds();
+    var _southWest = {"lat":boundsArray[0],"lng":boundsArray[1]};
+    var _northEast= {"lat":boundsArray[2],"lng":boundsArray[3]};
+    var bounds = {"_southWest": _southWest,"_northEast":_northEast};
+
+    Map message = new Map();
+    message['function'] = 'register';
+    message['zoom'] =  zoom;
+    message['bounds'] = bounds;
+
+    caller.socket.send(stringify(message));
   }
   
   List getBounds(){
@@ -83,8 +106,8 @@ class OpenStreetMap extends LeafletMap {
         east = _map.getBounds().getNorthEast().lng;
       });
     return [south, west, north, east];
-  }   
-  
+  }
+
   int  getZoom() {
     js.scoped((){
       _zoom = _map.getZoom();
@@ -92,6 +115,12 @@ class OpenStreetMap extends LeafletMap {
     return _zoom;
   }
   
+  zoomTo(zoom){
+    js.scoped((){
+      _map.zoomTo(zoom);
+    });
+  }
+
   void setView(num latitude, num longitude, int zoom) {
     var _pos;
     js.scoped(() {
@@ -99,20 +128,20 @@ class OpenStreetMap extends LeafletMap {
       _map.setView(_pos,12);
     });
   }
-  
+
   clearFeatureLayer()
   {
     js.scoped((){
       _featureLayerGroup.clearLayers();
     });
   }
-  
+
   closePopup(){
     js.scoped((){
     _map.closePopup();
     });
   }
-  
+
   openPopup(js.Proxy popup){
     js.scoped((){
     _map.openPopup(popup);
@@ -123,7 +152,7 @@ class OpenStreetMap extends LeafletMap {
 
 class Popup{
   js.Proxy _popup;
-  
+
   Popup(Coord popupOrigin, String content, Map options) {
     js.scoped(() {
       var popupOptions = options;
@@ -138,32 +167,28 @@ class Popup{
       js.retain(_popup);
     });
   }
-  
+
   void addTo(LeafletMap map) {
     map.closePopup();
     map.openPopup(_popup);
-  }  
+  }
 }
 
 abstract class MapFeature{
-  
+
   js.Proxy _mapFeature;
-  
-  
+
+
   void addListeners(mmsi)
   {
     onClickHandler(e)=> caller.onClickHandler(e, mmsi);
     onMouseoutHandler(e)=>caller.onMouseoutHandler(e);
     onMouseoverHandler(e) =>caller.onMouseoverHandler(e, mmsi);
-
-    js.context.clickHandler = new js.Callback.many(onClickHandler);
-    js.context.mouseoverHandler = new js.Callback.many(onMouseoverHandler);
-    js.context.mouseoutHandler = new js.Callback.many(onMouseoutHandler);
-    _mapFeature.on('click', js.context.clickHandler);
-    _mapFeature.on('mouseover', js.context.mouseoverHandler);
-    _mapFeature.on('mouseout', js.context.mouseoutHandler);
+    _mapFeature.on('click', new js.Callback.many(onClickHandler));
+    _mapFeature.on('mouseover', new js.Callback.many(onMouseoverHandler));
+    _mapFeature.on('mouseout', new js.Callback.many(onMouseoutHandler));
   }
-  
+
   void addTo(LeafletMap map, bool featureLayer) {
     js.scoped(() {
       if(featureLayer)
@@ -176,7 +201,7 @@ abstract class MapFeature{
       }
     });
   }
-  
+
   void remove(LeafletMap map, bool featureLayer) {
     js.scoped(() {
       if(featureLayer)
@@ -192,7 +217,7 @@ abstract class MapFeature{
 }
 
 class Polyline extends MapFeature{
-   
+
   Polyline(List<Coord> vectorPoints, Map options) {
     js.scoped(() {
       var latlng = js.context.L.LatLng;
@@ -211,7 +236,7 @@ class Polyline extends MapFeature{
 }
 
 class AnimatedPolygon extends MapFeature{
-  
+
   AnimatedPolygon(List<Coord> vectorPoints, Map options, int vmmsi) {
     js.scoped(() {
       var latlng = js.context.L.LatLng;
@@ -228,13 +253,13 @@ class AnimatedPolygon extends MapFeature{
       js.retain(_mapFeature);
     });
   }
-   
+
   startAnimation(){
     js.scoped(() {
       _mapFeature.start();
     });
   }
-  
+
   stopAnimation(){
     js.scoped(() {
       _mapFeature.stop();
@@ -255,7 +280,7 @@ class CircleMarker extends MapFeature{
   }
   clearLayers(){
     js.scoped((){
-     // _animatedPolygon.clearLayers(); 
+     // _animatedPolygon.clearLayers();
     });
   }
 }
