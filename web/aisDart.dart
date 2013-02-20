@@ -17,6 +17,12 @@ Map<int,String> aton_types = new Map<int,String>();
 var zoomSpeedArray = [20,20,20,20,20,20,16,12,8,4,2,1,0.1,-1,-1,-1,-1,-1,-1];
 
 
+bool  encounteredError = false;
+int retrySeconds = 2;
+int timeFlex;
+
+
+
 void main() {
 
   initWebSocket(2);
@@ -40,50 +46,56 @@ logMsg(String msg){
 }
 
 void initWebSocket(int retrySeconds) {
-  bool encounteredError = false;
-
+  
   logMsg("Connecting to Web socket");
-//  socket = new WebSocket('ws://192.168.1.112:8090');
-  socket = new WebSocket('ws://127.0.0.1:8090');
-
-  socket.on.open.add((e) {
-    logMsg('Connected');
-    initMap();
+ //socket = new WebSocket('ws://192.168.1.112:8090');
+   socket = new WebSocket('ws://127.0.0.1:8090');
+  
+  socket.on.open.add((e){
+    logMsg("Connected to Websocket-Server"); 
+    if(leaflet_map==null)  initMap();
   });
 
-  socket.on.close.add((e) {
+  socket.on.close.add((evt)
+  {
     logMsg('web socket closed, retrying in $retrySeconds seconds');
-    if (!encounteredError) {
+    if (!encounteredError) 
+    {
       window.setTimeout(() => initWebSocket(retrySeconds/**2*/), 1000*retrySeconds);
     }
     encounteredError = true;
   });
+  
+  socket.on.message.add((evt)
+  {
+    var timeMessage = new DateTime.now().millisecondsSinceEpoch;
+    var timeQuery = timeMessage - timeFlex;
 
-  socket.on.error.add((e) {
-    logMsg("Error connecting to ws");
-    if (!encounteredError) {
-      window.setTimeout(() => initWebSocket(retrySeconds*2), 1000*retrySeconds);
-    }
-    encounteredError = true;
-  });
-
-  socket.on.message.add((MessageEvent e) {
-    //logMsg('received message ${e.data}');
-    Map json = parse(e.data);
+    Map json = parse(evt.data);
     if (json['type'] == "vesselsInBoundsEvent")
     {
-      logMsg("vesselsInBoundsEvent: ${json['vessels'].length}");
-      processVesselsInBounds(json['vessels']);
+      logMsg("BoundsEvent: ${leaflet_map.getZoom()} ${json['vessels'].length} ${timeQuery}");
+      processVesselsInBounds(json['vessels'], timeMessage);
     }
     if (json['type'] == "vesselPosEvent")
     {
-      //logMsg("vesselsPositionEvent: ${json['vessel']}");
+      logMsg("vesselsPositionEvent: ${json['vessel']}");
       processVesselPositionEvent(json['vessel']);
     }
   });
+  
+  socket.on.error.add((evt)
+  {
+    logMsg("Error connecting to ws ${evt.toString()}");
+    if (!encounteredError) 
+    {
+       window.setTimeout(() => initWebSocket(retrySeconds*2), 1000*retrySeconds);
+    }
+    encounteredError = true;
+  });
 }
 
-processVesselsInBounds(jsonArray){
+processVesselsInBounds(jsonArray, timeMessage){
   var currentZoom = leaflet_map.getZoom();
   vessels.forEach((k,v){
     if(v['polygon']!=null)
@@ -106,8 +118,8 @@ processVesselsInBounds(jsonArray){
   // anschließend starte die Animation für Polygone und Schiffsdreiecke
   for (var x in jsonArray)
   {
-    paintToMap(x, (vesselWithMapObjects){
-      var timeStart = new Date.now().millisecondsSinceEpoch;
+    paintToMap(x, currentZoom, (vesselWithMapObjects){
+      var timeStart = new DateTime.now().millisecondsSinceEpoch;
       vessels["${x['mmsi']}"] = vesselWithMapObjects;
       if (currentZoom > 12)
       {
@@ -122,12 +134,12 @@ processVesselsInBounds(jsonArray){
           ap.startAnimation();
         }
       }
-      var ts_posEvent = new Date.now().millisecondsSinceEpoch;
+      var ts_posEvent = new DateTime.now().millisecondsSinceEpoch;
       //logMsg("painted in totally ${ts_posEvent - timeStart} ms\n");
     });
   }
 //   zeige eine Infobox über die aktuelle minimal-Geschwindigkeit angezeigter Schiffe
-  if (currentZoom > 13)
+  if (currentZoom < 13)
   {
     query('#zoomSpeed').text ="vessels reporting > ${ zoomSpeedArray[currentZoom]} knots";
     query('#zoomSpeed').style.display =  'block';
@@ -136,12 +148,14 @@ processVesselsInBounds(jsonArray){
   {
     query('#zoomSpeed').style.display =  'none';
   }
+  var timePainted = new DateTime.now().millisecondsSinceEpoch;
+  logMsg("painted in ${timePainted - timeMessage} msec");
 }
 
 processVesselPositionEvent(json){
   //update or create vessel
 
-  var timeStart = new Date.now().millisecondsSinceEpoch;
+  var timeStart = new DateTime.now().millisecondsSinceEpoch;
   var ts_vector, ts_polygon, ts_triangle;
   var vessel =vessels[json['userid'].toString()];
   if (vessel == null)
@@ -179,7 +193,7 @@ processVesselPositionEvent(json){
 //    ts_triangle = new Date.now().millisecondsSinceEpoch;
 //    logMsg("pos Event processed ${ts_triangle - timeStart}");
   }
-    paintToMap(vessel, (vesselWithMapObjects){
+    paintToMap(vessel, leaflet_map.getZoom(), (vesselWithMapObjects){
     vessels[json['userid'].toString()] = vesselWithMapObjects;
     if (leaflet_map.getZoom() > 12)
     {
@@ -192,7 +206,7 @@ processVesselPositionEvent(json){
         vesselWithMapObjects['polygon'].startAnimation();
       }
     }
-    var ts_posEvent = new Date.now().millisecondsSinceEpoch;
+    var ts_posEvent = new DateTime.now().millisecondsSinceEpoch;
     //logMsg("painted in totally ${ts_posEvent - timeStart} ms\n");
 
   });
@@ -202,11 +216,11 @@ onClickHandler( e, mmsi){
   print("clickEvent on ${e.type} for ship ${mmsi}");
 }
 onMouseoutHandler(e){
-  print("mouseoutEvent on ${e.type}");
-  //leaflet_map.closePopup();
+//  print("mouseoutEvent on ${e.type}");
+  leaflet_map.closePopup();
 }
 onMouseoverHandler(e, mmsi){
-  logMsg("mouseOverEvent on ${e} for ship ${mmsi}");
+//  logMsg("mouseOverEvent on ${e} for ship ${mmsi}");
   var vessel = vessels["${mmsi}"];
   var pos = vessel['pos'];
   var latlong = new leaflet_maps.Coord(pos[1], pos[0]);
@@ -218,11 +232,11 @@ onMouseoverHandler(e, mmsi){
   popup.addTo(leaflet_map);
 }
 
-paintToMap(v, callback){
+paintToMap(v,zoom, callback){
 
   if(v['pos'] != null)
   {
-    var ts_flex = new Date.now().millisecondsSinceEpoch;
+    var ts_flex = new DateTime.now().millisecondsSinceEpoch;
 
     if(!v.containsKey('ship_type'))v['ship_type']=56;
     leaflet_maps.Icon icon;
@@ -232,45 +246,41 @@ paintToMap(v, callback){
       var moving = (v['sog'] !=null && v['sog'] > 0.4 && v['sog']!=102.3) ; //nur Schiffe, die sich mit mind. 0,3 Knoten bewegen
       var shipStatics = (leaflet_map.getZoom() > 11) &&  (v['cog'] !=null ||(v['true_heading']!=null && v['true_heading']!=0.0 && v['true_heading'] !=511)) && (v['dim_port'] !=null && v['dim_stern']!=null) ;
 
-      v['angle'] = calcAngle(v);
-      var cos_angle=cos(v['angle']);
-      var sin_angle=sin(v['angle']);
-
-      var vectorLength;
-      if(v['sog'] >30) vectorLength = v['sog']/10; else vectorLength = v['sog'];
-      var vectorWidth;
-      if(v['sog'] >30){ vectorWidth = 5; } else { vectorWidth = 2;}
-
+      v['brng'] = calcAngle(v);
+      var cos_angle=cos(v['brng']);
+      var sin_angle=sin(v['brng']);
       List<leaflet_maps.Coord> vectorPoints = new List();
       leaflet_maps.Coord shipPoint = new leaflet_maps.Coord(v['pos'][1],v['pos'][0]);
       vectorPoints.add(shipPoint);
 
       if (moving) //nur Schiffe, die sich mit mind. 1 Knoten bewegen
       {
-        vectorPoints.add(shipPoint);
-        vectorPoints.add(shipPoint);
-        var targetPoint = calcVector(v['pos'][0],v['pos'][1], vectorLength, sin_angle, cos_angle);
+        var meterProSekunde = v['sog'] *0.51444;
+        var vectorLength = meterProSekunde * 30; //meter, die in 30 sec zurückgelegt werden
+        var targetPoint = destinationPoint(v['pos'][1], v['pos'][0], v['cog'], vectorLength);
+        //var targetPoint = calcVector(v['pos'][0],v['pos'][1], vectorLength, sin_angle, cos_angle);//destinationPoint(this.lat, this.lon, this.cog, vectorLength);
         vectorPoints.add(targetPoint);
-
+        var vectorWidth = (v['sog'] > 30?5:2); 
         v['vector'] = new leaflet_maps.Polyline(vectorPoints, {'color': 'red', 'weight': vectorWidth });
         //logMsg("vector created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-        ts_flex= new Date.now().millisecondsSinceEpoch;
+        ts_flex= new DateTime.now().millisecondsSinceEpoch;
         v['vector'].addTo(leaflet_map, true);
         //logMsg("vector added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-        ts_flex= new Date.now().millisecondsSinceEpoch;
-
+        ts_flex= new DateTime.now().millisecondsSinceEpoch;
+        var animationPartsSize = vectorLength/(zoom); //in wieviele Teilstücke wird der vector zerlegt
+        var animationInterval = 2000; //wie lang ist die Zeitspanne zwischen zwei Animationsschritten
         if (shipStatics)
         {
           v['polygon'] = new leaflet_maps.AnimatedPolygon(vectorPoints,{
             'autoStart':false,
             'animation':true,
-            'distance': vectorLength/10,
-            'interval': 200,
+            'distance': animationPartsSize,
+            'interval': animationInterval,
             'dim_stern':v['dim_stern'],
             'dim_port': v['dim_port'],
             'dim_bow':v['dim_bow'],
             'dim_starboard': v['dim_starboard'],
-            'angle': v['angle'],
+            'brng':v['brng'],
             'color': "blue",
             'weight': 3,
             'fill':true,
@@ -279,18 +289,18 @@ paintToMap(v, callback){
             'clickable':false
           }, v['mmsi']);
           //logMsg("polygon created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-          ts_flex= new Date.now().millisecondsSinceEpoch;
+          ts_flex= new DateTime.now().millisecondsSinceEpoch;
           v['polygon'].addTo(leaflet_map, true);
           //logMsg("polygon added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-          ts_flex= new Date.now().millisecondsSinceEpoch;
+          ts_flex= new DateTime.now().millisecondsSinceEpoch;
         }
 
         v['triangle'] = new leaflet_maps.AnimatedPolygon(vectorPoints,{
           'autoStart': false,
           'animation':true,
-          'distance': vectorLength/10,
-          'interval':200,
-          'angle': v['angle'],
+          'distance': animationPartsSize,
+          'interval':animationInterval,
+          'brng':v['brng'],
           'zoom': leaflet_map.getZoom(),
           'color': "black",
           'weight': 1,
@@ -301,11 +311,10 @@ paintToMap(v, callback){
         }, v['mmsi']);
 
         //logMsg("triangle created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-        ts_flex= new Date.now().millisecondsSinceEpoch;
-
+        ts_flex= new DateTime.now().millisecondsSinceEpoch;
         v['triangle'].addTo(leaflet_map, true);
         //logMsg("triangle added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-        ts_flex= new Date.now().millisecondsSinceEpoch;
+        ts_flex= new DateTime.now().millisecondsSinceEpoch;
         }
           else //zeichne für nicht fahrende Schiffe einen Circlemarker und möglichst ein Polygon
           {
@@ -314,13 +323,11 @@ paintToMap(v, callback){
               v['polygon'] = new leaflet_maps.AnimatedPolygon(vectorPoints,{
                 'autoStart':false,
                 'animation':false,
-                'distance': vectorLength/10,
-                'interval': 200,
                 'dim_stern':v['dim_stern'],
                 'dim_port': v['dim_port'],
                 'dim_bow':v['dim_bow'],
                 'dim_starboard': v['dim_starboard'],
-                'angle': v['angle'],
+                'brng':v['brng'],
                 'color': "blue",
                 'weight': 3,
                 'fill':true,
@@ -329,10 +336,10 @@ paintToMap(v, callback){
                 'clickable':false
               }, v['mmsi']);
               //logMsg("polygon created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-              ts_flex= new Date.now().millisecondsSinceEpoch;
+              ts_flex= new DateTime.now().millisecondsSinceEpoch;
               v['polygon'].addTo(leaflet_map, true);
               //logMsg("polygon added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-              ts_flex= new Date.now().millisecondsSinceEpoch;            }
+              ts_flex= new DateTime.now().millisecondsSinceEpoch;            }
               Map circleOptions = {
                                  'radius':4,
                                  'fill':true,
@@ -344,11 +351,11 @@ paintToMap(v, callback){
             };
             v['marker'] = new leaflet_maps.CircleMarker(vectorPoints[0], circleOptions, v['mmsi']);
             //logMsg("circle created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-            ts_flex= new Date.now().millisecondsSinceEpoch;
+            ts_flex= new DateTime.now().millisecondsSinceEpoch;
 
             v['marker'].addTo(leaflet_map, true);
             //logMsg("circle added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
-            ts_flex= new Date.now().millisecondsSinceEpoch;
+            ts_flex= new DateTime.now().millisecondsSinceEpoch;
             }
         }
         else //message ist keine position- oder voyage-message
@@ -444,8 +451,9 @@ String createMouseOverPopup(vessel){
     if(vessel['cog'] != null) {
       mouseOverPopup = "${mouseOverPopup}<tr><td>Course: &nbsp;</td><td><nobr>${vessel['cog'].toString()}</nobr></td></tr>";
     }
-      mouseOverPopup = "${mouseOverPopup}<tr><td>TimeReceived: &nbsp;</td><td><nobr>"
-      "${new Date.fromMillisecondsSinceEpoch(vessel['time_received'],isUtc: true).toString()}</nobr></td></tr>";
+    var time = new DateTime.fromMillisecondsSinceEpoch(vessel['time_received'],isUtc: false);
+    var timeString = time.toString().substring(0, 16);
+    mouseOverPopup = "${mouseOverPopup}<tr><td>TimeReceived: &nbsp;</td><td><nobr>${timeString}</nobr></td></tr>";
     if(vessel['dest'] != null) {
       mouseOverPopup = "${mouseOverPopup}<tr><td>Dest</td><td>${vessel['dest']}</b></nobr></td></tr>";
     }
@@ -493,6 +501,18 @@ leaflet_maps.Coord calcVector(lon, lat, sog, sinus, cosinus){
   return new leaflet_maps.Coord(lat - dy_deg, lon - dx_deg);
 }
 
+leaflet_maps.Coord destinationPoint(lat, lng, cog, dist) {
+   dist = dist / 6371000;  
+   var brng = cog * (PI / 180);  
+   var lat1 = lat * (PI / 180);
+   var lon1 = lng * (PI / 180);
+   var lat2 = asin(sin(lat1) * cos(dist) + cos(lat1) * sin(dist) * cos(brng));
+   var lon2 = lon1 + atan2(sin(brng) * sin(dist) * cos(lat1), cos(dist) - sin(lat1) * sin(lat2));
+   if (lat2.isNaN || lon2.isNaN)return null;
+   lat2 = lat2 *(180/PI);
+   lon2 = lon2 *(180/PI);
+   return new leaflet_maps.Coord(lat2, lon2);
+}
 
 initTypeArrays(){
 

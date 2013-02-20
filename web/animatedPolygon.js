@@ -140,8 +140,8 @@ L.animatedPolygon = function (latlngs, options) {
 function createTriangle(pos, options){
   var lon = pos.lng;
   var lat = pos.lat;
-  var cos_angle=Math.cos(options.angle);
-  var sin_angle=Math.sin(options.angle);
+  var cos_angle=Math.cos(options.brng);
+  var sin_angle=Math.sin(options.brng);
   var shippoints = [];
   var frontPoint = calcPoint(lon,lat, 0, 15,sin_angle,cos_angle, options.zoom); 
   shippoints.push(frontPoint);
@@ -161,9 +161,9 @@ function createShipPoints(pos, options) {
       var front = options.dim_bow;
       var len = (options.dim_bow + options.dim_stern);
       var wid = (options.dim_port +options.dim_starboard);
-      var cos_angle=Math.cos(options.angle);
-      var sin_angle=Math.sin(options.angle);
-      //ermittle aud den Daten die 5 Punkte des Polygons
+      var cos_angle=Math.cos(options.brng);
+      var sin_angle=Math.sin(options.brng);
+      //ermittle aus den Daten die 5 Punkte des Polygons
       var shippoints = [];
       //front left
       var dx = -left;

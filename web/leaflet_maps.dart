@@ -81,7 +81,7 @@ class OpenStreetMap extends LeafletMap {
     var zoom = getZoom();
     if(zoom < 3)
     {
-      zoomTo(3);
+      setZoom(3);
       return;
     }
     var boundsArray = getBounds();
@@ -93,7 +93,7 @@ class OpenStreetMap extends LeafletMap {
     message['function'] = 'register';
     message['zoom'] =  zoom;
     message['bounds'] = bounds;
-
+    caller.timeFlex = new DateTime.now().millisecondsSinceEpoch;
     caller.socket.send(stringify(message));
   }
   
@@ -115,9 +115,9 @@ class OpenStreetMap extends LeafletMap {
     return _zoom;
   }
   
-  zoomTo(zoom){
+  setZoom(zoom){
     js.scoped((){
-      _map.zoomTo(zoom);
+      _map.setZoom(zoom);
     });
   }
 
