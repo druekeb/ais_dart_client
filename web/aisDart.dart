@@ -48,8 +48,8 @@ logMsg(String msg){
 void initWebSocket(int retrySeconds) {
   
   logMsg("Connecting to Web socket");
- //socket = new WebSocket('ws://192.168.1.112:8090');
-   socket = new WebSocket('ws://127.0.0.1:8090');
+ socket = new WebSocket('ws://192.168.1.112:8090');
+ //  socket = new WebSocket('ws://127.0.0.1:8090');
   
   socket.on.open.add((e){
     logMsg("Connected to Websocket-Server"); 
@@ -79,7 +79,7 @@ void initWebSocket(int retrySeconds) {
     }
     if (json['type'] == "vesselPosEvent")
     {
-      logMsg("vesselsPositionEvent: ${json['vessel']}");
+      //logMsg("vesselsPositionEvent: ${json['vessel']}");
       processVesselPositionEvent(json['vessel']);
     }
   });
@@ -149,7 +149,7 @@ processVesselsInBounds(jsonArray, timeMessage){
     query('#zoomSpeed').style.display =  'none';
   }
   var timePainted = new DateTime.now().millisecondsSinceEpoch;
-  logMsg("painted in ${timePainted - timeMessage} msec");
+  logMsg("painted ${vessels.length}  ${timePainted - timeMessage} msec");
 }
 
 processVesselPositionEvent(json){
@@ -508,7 +508,7 @@ leaflet_maps.Coord destinationPoint(lat, lng, cog, dist) {
    var lon1 = lng * (PI / 180);
    var lat2 = asin(sin(lat1) * cos(dist) + cos(lat1) * sin(dist) * cos(brng));
    var lon2 = lon1 + atan2(sin(brng) * sin(dist) * cos(lat1), cos(dist) - sin(lat1) * sin(lat2));
-   if (lat2.isNaN || lon2.isNaN)return null;
+   if (lat2.isNaN || lon2.isNaN) return null;
    lat2 = lat2 *(180/PI);
    lon2 = lon2 *(180/PI);
    return new leaflet_maps.Coord(lat2, lon2);
