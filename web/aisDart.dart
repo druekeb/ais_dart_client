@@ -3,6 +3,7 @@ library caller;
 import 'dart:html';
 import 'dart:json';
 import 'dart:math';
+import 'dart:async';
 
 import 'leaflet_maps.dart' as leaflet_maps;
 
@@ -48,25 +49,25 @@ logMsg(String msg){
 void initWebSocket(int retrySeconds) {
   
   logMsg("Connecting to Web socket");
- socket = new WebSocket('ws://192.168.1.112:8090');
- //  socket = new WebSocket('ws://127.0.0.1:8090');
+ //socket = new WebSocket('ws://192.168.1.112:8090');
+   socket = new WebSocket('ws://127.0.0.1:8090');
   
-  socket.on.open.add((e){
+  socket.onOpen.listen((e){
     logMsg("Connected to Websocket-Server"); 
     if(leaflet_map==null)  initMap();
   });
 
-  socket.on.close.add((evt)
+  socket.onClose.listen((evt)
   {
     logMsg('web socket closed, retrying in $retrySeconds seconds');
     if (!encounteredError) 
     {
-      window.setTimeout(() => initWebSocket(retrySeconds/**2*/), 1000*retrySeconds);
+      new Timer(new Duration(seconds:1), () => initWebSocket(retrySeconds/**2*/));
     }
     encounteredError = true;
   });
   
-  socket.on.message.add((evt)
+  socket.onMessage.listen((evt)
   {
     var timeMessage = new DateTime.now().millisecondsSinceEpoch;
     var timeQuery = timeMessage - timeFlex;
@@ -84,12 +85,12 @@ void initWebSocket(int retrySeconds) {
     }
   });
   
-  socket.on.error.add((evt)
+  socket.onError.listen((evt)
   {
     logMsg("Error connecting to ws ${evt.toString()}");
     if (!encounteredError) 
     {
-       window.setTimeout(() => initWebSocket(retrySeconds*2), 1000*retrySeconds);
+      new Timer(new Duration(seconds:1), () => initWebSocket(retrySeconds/**2*/));
     }
     encounteredError = true;
   });
@@ -226,7 +227,7 @@ onMouseoverHandler(e, mmsi){
   var latlong = new leaflet_maps.Coord(pos[1], pos[0]);
   var popupOptions = {'closeButton': false,
                       'autoPan': false,
-                      'offset' : [0,40]};
+                      'offset' : [40,40]};
   String popupText = createMouseOverPopup(vessel);
   var popup = new leaflet_maps.Popup(latlong, popupText, popupOptions);
   popup.addTo(leaflet_map);
@@ -238,7 +239,6 @@ paintToMap(v,zoom, callback){
   {
     var ts_flex = new DateTime.now().millisecondsSinceEpoch;
 
-    if(!v.containsKey('ship_type'))v['ship_type']=56;
     leaflet_maps.Icon icon;
    // für Schiffe zeichne...
     if (v['msgid'] < 4 ||v['msgid'] == 5)
@@ -341,13 +341,13 @@ paintToMap(v,zoom, callback){
               //logMsg("polygon added ${new Date.now().millisecondsSinceEpoch -ts_flex}");
               ts_flex= new DateTime.now().millisecondsSinceEpoch;            }
               Map circleOptions = {
-                                 'radius':4,
+                                 'radius':5,
                                  'fill':true,
                                  'fillColor':shipTypeColors[v['ship_type']],
                                  'fillOpacity':0.8,
                                  'color':"#000000",
-                                 'strokeOpacity':1,
-                                 'strokeWidth':0.5
+                                 'opacity':0.4,
+                                 'weight':2.5
             };
             v['marker'] = new leaflet_maps.CircleMarker(vectorPoints[0], circleOptions, v['mmsi']);
             //logMsg("circle created ${new Date.now().millisecondsSinceEpoch -ts_flex}");
@@ -515,18 +515,25 @@ leaflet_maps.Coord destinationPoint(lat, lng, cog, dist) {
 }
 
 initTypeArrays(){
-
+    shipTypes[2] = 'Other Type';
     shipTypes[6] = 'Passenger Ships';
     shipTypes[7] = 'Cargo Ships';
-    shipTypes[8]= 'Tankers';
+    shipTypes[8] = 'Tankers';
+    shipTypes[9] = 'Other Type';
+    shipTypes[20] = 'Wing in ground (WIG)';
+    shipTypes[29] = 'Wing in ground (WIG)';
     shipTypes[30] ='Fishing';
     shipTypes[31] ='Towing';
     shipTypes[32] ='Towing';
     shipTypes[33] ='Dredger';
-    shipTypes[34] ='Engaged in diving operations';
-    shipTypes[35] ='Engaged in military operations';
+    shipTypes[34] ='diving operations';
+    shipTypes[35] ='military operations';
     shipTypes[36] = 'Sailing';
     shipTypes[37] = 'Pleasure craft';
+    shipTypes[38] = 'Reserved';
+    shipTypes[39] = 'Reserved';
+    shipTypes[40] = 'High speed craft';
+    shipTypes[49] = 'High speed craft';
     shipTypes[50] ='Pilot vessel';
     shipTypes[51] ='Search and rescue vessels';
     shipTypes[52] ='Tugs';
@@ -537,8 +544,33 @@ initTypeArrays(){
     shipTypes[57] ='Spare for local vessels';
     shipTypes[58] ='Medical transports';
     shipTypes[59] = 'Ships according to RR';
-
-
+    shipTypes[60] = 'Passenger Ships';
+    shipTypes[61] = 'Passenger Ships';
+    shipTypes[63] = 'Passenger Ships';
+    shipTypes[65] = 'Passenger Ships';
+    shipTypes[67] = 'Passenger Ships';
+    shipTypes[69] = 'Passenger Ships';
+    shipTypes[70] = 'Cargo Ships';
+    shipTypes[71] = 'Cargo Ships';
+    shipTypes[72] = 'Cargo Ships';
+    shipTypes[73] = 'Cargo Ships';
+    shipTypes[74] = 'Cargo Ships';
+    shipTypes[77] = 'Cargo Ships';
+    shipTypes[79] = 'Cargo Ships';
+    shipTypes[80] = 'Tanker';
+    shipTypes[81] = 'Tanker';
+    shipTypes[82] = 'Tanker';
+    shipTypes[83] = 'Tanker';
+    shipTypes[84] = 'Tanker';
+    shipTypes[89] = 'Tanker';
+    shipTypes[90] = 'Other Type';
+    shipTypes[91] = 'Other Type';
+    shipTypes[97] = 'Other Type';
+    shipTypes[99] = 'Other Type';
+    
+    
+    
+    shipTypeColors[2] ='#f9f9f9';
     shipTypeColors[20] ='#f9f9f9';
     shipTypeColors[29] ='#f9f9f9';
     shipTypeColors[30] ='#f99d7b'/*brown, Fishing*/;
@@ -563,15 +595,30 @@ initTypeArrays(){
     shipTypeColors[59] ='white'/*Ships according to RR*/;
     shipTypeColors[6] ='#2d00fe'/*blue, Passenger Ships*/;
     shipTypeColors[60] ='#2d00fe'/*blue, Passenger Ships*/;
+    shipTypeColors[61] ='#2d00fe'/*blue, Passenger Ships*/;
+    shipTypeColors[63] ='#2d00fe'/*blue, Passenger Ships*/;
+    shipTypeColors[65] ='#2d00fe'/*blue, Passenger Ships*/;
+    shipTypeColors[67] ='#2d00fe'/*blue, Passenger Ships*/;
     shipTypeColors[69] ='#2d00fe'/*blue, Passenger Ships*/;
     shipTypeColors[7] = '#95f190'/*lightgreen, Cargo Ships*/;
     shipTypeColors[70] ='#95f190'/*lightgreen, Cargo Ships*/;
+    shipTypeColors[71] ='#95f190'/*lightgreen, Cargo Ships*/;
+    shipTypeColors[72] ='#95f190'/*lightgreen, Cargo Ships*/;
+    shipTypeColors[73] ='#95f190'/*lightgreen, Cargo Ships*/;
+    shipTypeColors[74] ='#95f190'/*lightgreen, Cargo Ships*/;
+    shipTypeColors[77] ='#95f190'/*lightgreen, Cargo Ships*/;
     shipTypeColors[79] ='#95f190'/*lightgreen, Cargo Ships*/;
     shipTypeColors[8] = '#f70016'/*red, Tankers*/;
     shipTypeColors[80] ='#f70016'/*Tanker*/;
+    shipTypeColors[81] = '#f70016'/*red, Tankers*/;
+    shipTypeColors[82] = '#f70016'/*red, Tankers*/;
+    shipTypeColors[83] = '#f70016'/*red, Tankers*/;
+    shipTypeColors[84] = '#f70016'/*red, Tankers*/;
     shipTypeColors[89] ='#f70016'/*red,Tankers*/;
     shipTypeColors[9] ='#d2d2d2'/*Other Type*/;
     shipTypeColors[90] ='#d2d2d2'/*Other Type*/;
+    shipTypeColors[91] ='#d2d2d2'/*Other Type*/;
+    shipTypeColors[97] ='#d2d2d2'/*Other Type*/;
     shipTypeColors[99] ='#d2d2d2'/*Other Type*/;
 
     nav_stati[0] ='under way us. engine';

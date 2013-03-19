@@ -2,4 +2,5 @@
 *.deps
 *.yaml
 *.lock
-packages
+*/packages
+*/packages/*

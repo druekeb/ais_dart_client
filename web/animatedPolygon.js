@@ -143,7 +143,7 @@ function createTriangle(pos, options){
   var cos_angle=Math.cos(options.brng);
   var sin_angle=Math.sin(options.brng);
   var shippoints = [];
-  var frontPoint = calcPoint(lon,lat, 0, 15,sin_angle,cos_angle, options.zoom); 
+  var frontPoint = calcPoint(lon,lat, 0, 20,sin_angle,cos_angle, options.zoom); 
   shippoints.push(frontPoint);
   var leftPoint = calcPoint(lon,lat, -5,-5,sin_angle,cos_angle, options.zoom);
   shippoints.push(leftPoint);
@@ -192,7 +192,7 @@ function createShipPoints(pos, options) {
     function calcPoint(lon, lat, dx, dy, sin_angle, cos_angle, zoom){
       if(zoom)
       {
-        zoom = (zoom < 13?(zoom + 1):zoom);
+        zoom = (zoom < 13?(zoom + 0.5):zoom);
         var divisor = Math.pow(2,zoom);
 
         var dy_deg = -((dx*sin_angle + dy*cos_angle)/divisor);
