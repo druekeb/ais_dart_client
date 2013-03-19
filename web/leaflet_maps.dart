@@ -1,6 +1,7 @@
 library leaflet_maps;
 
-import "dart:html" as html;
+import "dart:html";
+import "dart:async";
 import 'package:js/js.dart' as js;
 import 'aisDart.dart' as caller;
 import 'dart:json';
@@ -43,6 +44,7 @@ class OpenStreetMap extends LeafletMap {
   int initialZoom;
   num initialLat;
   num initialLon;
+  var boundsTimeout;
 
   OpenStreetMap(String elementid, List mapOptions, {String width, String height}) : super(elementid, width: width, height: height){ //critical to call super constructor
     initialZoom = mapOptions[1];
@@ -54,12 +56,22 @@ class OpenStreetMap extends LeafletMap {
     var osmAttrib = 'Map-Data <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-By-SA</a> by <a href="http://openstreetmap.org/">OpenStreetMap</a> contributors target="_blank">MapQuest</a>, <a href="http://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> and contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/" target="_blank">CC-BY-SA</a>';
     var subDomains = ['otile1','otile2','otile3','otile4'];
     js.scoped(() {
-        var mapOptions = js.map({'maxZoom': 18, 'attribution': osmAttrib, 'subdomains': subDomains});
-        _map = new js.Proxy(js.context.L.Map, _elementid);
+        var mapOptions = js.map({
+          'closePopupOnClick':false,
+          'markerZoomAnimation': false,
+          'zoomAnimation': false,
+          'worldCopyJump': true,
+          'maxZoom': 18,
+          'minZoom': 3});
+        var tileLayerOptions = js.map({
+          'attribution': osmAttrib, 
+          'subdomains': subDomains
+          });
+        _map = new js.Proxy(js.context.L.Map, _elementid,mapOptions);
         _featureLayerGroup = new js.Proxy(js.context.L.LayerGroup);
         _map.addLayer(_featureLayerGroup);
         js.retain(_featureLayerGroup);
-        var osm = new js.Proxy(js.context.L.TileLayer,tileURL, mapOptions);
+        var osm = new js.Proxy(js.context.L.TileLayer,tileURL, tileLayerOptions);
         _map.addLayer(osm);
         var mouseOptions = js.map({'numDigits': 5  });
         var mousePosition = new js.Proxy(js.context.L.Control.MousePosition, mouseOptions);
@@ -95,6 +107,7 @@ class OpenStreetMap extends LeafletMap {
     message['bounds'] = bounds;
     caller.timeFlex = new DateTime.now().millisecondsSinceEpoch;
     caller.socket.send(stringify(message));
+    boundsTimeout = new Timer(new Duration(milliseconds:120000),changeRegistration);  
   }
   
   List getBounds(){

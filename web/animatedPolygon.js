@@ -143,7 +143,7 @@ function createTriangle(pos, options){
   var cos_angle=Math.cos(options.brng);
   var sin_angle=Math.sin(options.brng);
   var shippoints = [];
-  var frontPoint = calcPoint(lon,lat, 0, 20,sin_angle,cos_angle, options.zoom); 
+  var frontPoint = calcPoint(lon,lat, 0, 15,sin_angle,cos_angle, options.zoom); 
   shippoints.push(frontPoint);
   var leftPoint = calcPoint(lon,lat, -5,-5,sin_angle,cos_angle, options.zoom);
   shippoints.push(leftPoint);

@@ -227,7 +227,7 @@ onMouseoverHandler(e, mmsi){
   var latlong = new leaflet_maps.Coord(pos[1], pos[0]);
   var popupOptions = {'closeButton': false,
                       'autoPan': false,
-                      'offset' : [40,40]};
+                      'offset' : [50,-50]};
   String popupText = createMouseOverPopup(vessel);
   var popup = new leaflet_maps.Popup(latlong, popupText, popupOptions);
   popup.addTo(leaflet_map);
@@ -467,7 +467,7 @@ String createMouseOverPopup(vessel){
     if (shipTypes[vessel['ship_type']] != null) {
       mouseOverPopup = "${mouseOverPopup}<tr><td>ship_type</td><td>${shipTypes[vessel['ship_type']]}</b></nobr></td></tr>";
     }
-    if(vessel['rot'] != null) mouseOverPopup = "${mouseOverPopup}<tr><td>Rotation</td><td>${vessel['rot'].toString()}</b></nobr></td></tr>";
+    //if(vessel['rot'] != null) mouseOverPopup = "${mouseOverPopup}<tr><td>Rotation</td><td>${vessel['rot'].toString()}</b></nobr></td></tr>";
   }
   mouseOverPopup = "${mouseOverPopup}</table></div>";
   return mouseOverPopup;
